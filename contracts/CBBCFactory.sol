@@ -10,17 +10,11 @@ interface IVault {
 contract CBBCFactory is Ownable {
     address[] public allCBBCTokens;
     address public vault;
-    address public stablecoin; // USDC address
 
     event CBBCIssued(address indexed cbbcAddress, address indexed issuer);
 
-    constructor(
-        address _vault,
-        address _stablecoin,
-        address initialOwner
-    ) Ownable(initialOwner) {
+    constructor(address _vault, address initialOwner) Ownable(initialOwner) {
         vault = _vault;
-        stablecoin = _stablecoin;
     }
 
     function createCBBC(
@@ -47,16 +41,11 @@ contract CBBCFactory is Ownable {
             marginRatio,
             initialPrice,
             issuer,
-            issuer // make issuer the owner of CBBC
+            issuer // Issuer is owner
         );
 
         allCBBCTokens.push(address(cbbc));
-
-        // 1. Register issuer in Vault
         IVault(vault).registerIssuer(address(cbbc), issuer);
-
-        // 2. Set stablecoin in CBBC
-        cbbc.setStablecoin(stablecoin);
 
         emit CBBCIssued(address(cbbc), issuer);
         return address(cbbc);

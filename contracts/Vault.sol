@@ -16,14 +16,24 @@ interface ICBBC {
     function isBull() external view returns (bool);
 }
 
+interface IClaimEngine {
+    function initializeClaim(uint256 amount) external;
+}
+
 contract Vault is Ownable {
     mapping(address => uint256) public margins;
+    mapping(address => uint256) public premiums;
     mapping(address => bool) public liquidated;
     mapping(address => address) public issuers;
     IERC20 public stablecoin;
 
     event MarginDeposited(
         address indexed depositor,
+        address indexed cbbc,
+        uint256 amount
+    );
+    event PremiumDeposited(
+        address indexed buyer,
         address indexed cbbc,
         uint256 amount
     );
@@ -44,14 +54,22 @@ contract Vault is Ownable {
 
     function depositMargin(address cbbc, uint256 amount) external {
         require(amount > 0, "Amount must be greater than zero");
-
         require(
             stablecoin.transferFrom(msg.sender, address(this), amount),
             "Transfer failed"
         );
-
         margins[cbbc] += amount;
         emit MarginDeposited(msg.sender, cbbc, amount);
+    }
+
+    function depositPremium(address cbbc, uint256 amount) external {
+        require(amount > 0, "Premium must be greater than zero");
+        require(
+            stablecoin.transferFrom(msg.sender, address(this), amount),
+            "Transfer failed"
+        );
+        premiums[cbbc] += amount;
+        emit PremiumDeposited(msg.sender, cbbc, amount);
     }
 
     function checkMargin(address cbbc, uint256 requiredMargin) external {
@@ -68,13 +86,14 @@ contract Vault is Ownable {
 
         address issuer = issuers[cbbc];
         uint256 margin = margins[cbbc];
+        uint256 premium = premiums[cbbc];
         margins[cbbc] = 0;
+        premiums[cbbc] = 0;
 
         require(
-            stablecoin.transfer(issuer, margin),
-            "Transfer to issuer failed"
+            stablecoin.transfer(issuer, margin + premium),
+            "Refund to issuer failed"
         );
-
         emit KnockOutHandled(cbbc);
     }
 
@@ -82,8 +101,9 @@ contract Vault is Ownable {
         require(!liquidated[cbbc], "Already liquidated");
         liquidated[cbbc] = true;
 
-        uint256 vaultBalance = margins[cbbc];
+        uint256 totalMargin = margins[cbbc] + premiums[cbbc];
         margins[cbbc] = 0;
+        premiums[cbbc] = 0;
 
         uint256 spotPrice = IPriceOracle(ICBBC(cbbc).oracle()).latestPrice();
         uint256 strike = ICBBC(cbbc).strikePrice();
@@ -102,13 +122,29 @@ contract Vault is Ownable {
 
         uint256 totalSettlement = (settlementPerUnit * totalSupply) / initial;
 
-        if (totalSettlement >= vaultBalance) {
-            stablecoin.transfer(cbbc, vaultBalance);
-        } else {
-            stablecoin.transfer(cbbc, totalSettlement);
-            stablecoin.transfer(issuers[cbbc], vaultBalance - totalSettlement);
+        if (totalSettlement > totalMargin) {
+            totalSettlement = totalMargin; // Cap to available margin
+        }
+
+        require(claimEngineFactory != address(0), "ClaimEngineFactory not set");
+
+        address newClaimEngine = IClaimEngineFactory(claimEngineFactory)
+            .deployClaimEngine(address(stablecoin), cbbc, totalSettlement);
+
+        require(
+            stablecoin.transfer(newClaimEngine, totalSettlement),
+            "Transfer to ClaimEngine failed"
+        );
+
+        address issuer = issuers[cbbc];
+        if (totalMargin > totalSettlement) {
+            require(
+                stablecoin.transfer(issuer, totalMargin - totalSettlement),
+                "Refund to issuer failed"
+            );
         }
 
         emit SettlementHandled(cbbc);
+        emit ClaimEngineCreated(cbbc, newClaimEngine);
     }
 }
