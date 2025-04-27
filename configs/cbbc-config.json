@@ -1,0 +1,44 @@
+[
+    {
+        "name": "ETH-2500-30JUN25-Bull",
+        "symbol": "ETH2500JUN25BULL",
+        "oracle": "0xOracle1",
+        "vault": "0xVault",
+        "strikePrice": "2500e18",
+        "callLevel": "2000e18",
+        "expiry": "1759200000",
+        "isBull": true,
+        "marginRatio": "0.2e18",
+        "initialPrice": "2400e18",
+        "notionalPerToken": "0.001e18",
+        "issuer": "0xIssuer1"
+    },
+    {
+        "name": "BTC-70000-31DEC25-Bear",
+        "symbol": "BTC70000DEC25BEAR",
+        "oracle": "0xOracle2",
+        "vault": "0xVault",
+        "strikePrice": "70000e18",
+        "callLevel": "75000e18",
+        "expiry": "1767139200",
+        "isBull": false,
+        "marginRatio": "0.3e18",
+        "initialPrice": "68000e18",
+        "notionalPerToken": "0.0005e18",
+        "issuer": "0xIssuer2"
+    },
+    {
+        "name": "SOL-150-30SEP25-Bull",
+        "symbol": "SOL150SEP25BULL",
+        "oracle": "0xOracle3",
+        "vault": "0xVault",
+        "strikePrice": "150e18",
+        "callLevel": "130e18",
+        "expiry": "1761878400",
+        "isBull": true,
+        "marginRatio": "0.25e18",
+        "initialPrice": "145e18",
+        "notionalPerToken": "10e18",
+        "issuer": "0xIssuer3"
+    }
+]

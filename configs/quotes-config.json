@@ -1,0 +1,10 @@
+{
+    "quote": {
+        "buyer": "0xBuyerAddress",
+        "amount": 1000,
+        "premiumPerToken": "50000000000000000", // (0.05 USDC)
+        "expiry": 1759210000,
+        "nonce": 123456789
+    },
+    "signature": "0xIssuerSignatureOfTheQuote"
+}
