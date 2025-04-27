@@ -4,33 +4,31 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-interface IPriceOracle {
-    function latestPrice() external view returns (uint256);
-}
-
 interface IVault {
+    function checkMintMargin(address cbbc, uint256 amount) external;
     function handleKnockOut(address cbbc) external;
     function handleSettlement(address cbbc) external;
     function checkMargin(address cbbc, uint256 requiredMargin) external;
 }
 
+interface IPriceOracle {
+    function latestPrice() external view returns (uint256);
+}
+
 contract CBBC is ERC20, Ownable {
     IPriceOracle public oracle;
     address public vault;
-
     uint256 public strikePrice;
     uint256 public callLevel;
     uint256 public expiry;
     bool public isBull;
     uint256 public marginRatio;
     uint256 public initialPrice;
+    uint256 public notionalPerToken;
     address public issuer;
 
     bool public knockedOut;
     bool public settled;
-    bool public readyToClaim;
-
-    mapping(address => bool) public claimed;
 
     constructor(
         string memory name,
@@ -43,6 +41,7 @@ contract CBBC is ERC20, Ownable {
         bool _isBull,
         uint256 _marginRatio,
         uint256 _initialPrice,
+        uint256 _notionalPerToken,
         address _issuer,
         address initialOwner
     ) ERC20(name, symbol) Ownable(initialOwner) {
@@ -54,7 +53,13 @@ contract CBBC is ERC20, Ownable {
         isBull = _isBull;
         marginRatio = _marginRatio;
         initialPrice = _initialPrice;
+        notionalPerToken = _notionalPerToken;
         issuer = _issuer;
+    }
+
+    function mint(address to, uint256 amount) external onlyOwner {
+        IVault(vault).checkMintMargin(address(this), amount);
+        _mint(to, amount);
     }
 
     function checkCallEvent() external {
@@ -73,13 +78,12 @@ contract CBBC is ERC20, Ownable {
     }
 
     function settle() external {
-        require(block.timestamp >= expiry || knockedOut, "Not expired or knocked out");
+        require(
+            block.timestamp >= expiry || knockedOut,
+            "Not expired or knocked out"
+        );
         require(!settled, "Already settled");
         settled = true;
         IVault(vault).handleSettlement(address(this));
-    }
-
-    function mint(address to, uint256 amount) external onlyOwner {
-        _mint(to, amount);
     }
 }

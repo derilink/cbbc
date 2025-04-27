@@ -14,10 +14,15 @@ interface ICBBC {
     function strikePrice() external view returns (uint256);
     function initialPrice() external view returns (uint256);
     function isBull() external view returns (bool);
+    function notionalPerToken() external view returns (uint256);
 }
 
-interface IClaimEngine {
-    function initializeClaim(uint256 amount) external;
+interface IClaimEngineFactory {
+    function deployClaimEngine(
+        address stablecoin,
+        address cbbc,
+        uint256 totalPayout
+    ) external returns (address);
 }
 
 contract Vault is Ownable {
@@ -26,6 +31,7 @@ contract Vault is Ownable {
     mapping(address => bool) public liquidated;
     mapping(address => address) public issuers;
     IERC20 public stablecoin;
+    address public claimEngineFactory;
 
     event MarginDeposited(
         address indexed depositor,
@@ -40,12 +46,17 @@ contract Vault is Ownable {
     event MarginLiquidated(address indexed cbbc);
     event KnockOutHandled(address indexed cbbc);
     event SettlementHandled(address indexed cbbc);
+    event ClaimEngineCreated(address indexed cbbc, address indexed claimEngine);
 
     constructor(
         address _stablecoin,
         address initialOwner
     ) Ownable(initialOwner) {
         stablecoin = IERC20(_stablecoin);
+    }
+
+    function setClaimEngineFactory(address _factory) external onlyOwner {
+        claimEngineFactory = _factory;
     }
 
     function registerIssuer(address cbbc, address issuer) external onlyOwner {
@@ -70,6 +81,18 @@ contract Vault is Ownable {
         );
         premiums[cbbc] += amount;
         emit PremiumDeposited(msg.sender, cbbc, amount);
+    }
+
+    function checkMintMargin(address cbbc, uint256 amount) external {
+        uint256 price = IPriceOracle(ICBBC(cbbc).oracle()).latestPrice();
+        uint256 marginRequiredPerToken = (price *
+            ICBBC(cbbc).notionalPerToken()) / 1e18;
+        uint256 requiredMargin = marginRequiredPerToken * amount;
+
+        require(
+            margins[cbbc] >= requiredMargin,
+            "Not enough margin for minting"
+        );
     }
 
     function checkMargin(address cbbc, uint256 requiredMargin) external {
@@ -107,23 +130,23 @@ contract Vault is Ownable {
 
         uint256 spotPrice = IPriceOracle(ICBBC(cbbc).oracle()).latestPrice();
         uint256 strike = ICBBC(cbbc).strikePrice();
-        uint256 initial = ICBBC(cbbc).initialPrice();
         bool bull = ICBBC(cbbc).isBull();
+        uint256 notionalPerToken = ICBBC(cbbc).notionalPerToken();
+        uint256 units = ICBBC(cbbc).totalSupply();
+        require(units > 0, "No CBBC tokens");
 
-        uint256 settlementPerUnit = 0;
+        uint256 priceDiff = 0;
         if (bull && spotPrice > strike) {
-            settlementPerUnit = spotPrice - strike;
+            priceDiff = spotPrice - strike;
         } else if (!bull && spotPrice < strike) {
-            settlementPerUnit = strike - spotPrice;
+            priceDiff = strike - spotPrice;
         }
 
-        uint256 totalSupply = ICBBC(cbbc).totalSupply();
-        require(totalSupply > 0, "No CBBC tokens");
-
-        uint256 totalSettlement = (settlementPerUnit * totalSupply) / initial;
+        uint256 settlementPerToken = (notionalPerToken * priceDiff) / 1e18;
+        uint256 totalSettlement = settlementPerToken * units;
 
         if (totalSettlement > totalMargin) {
-            totalSettlement = totalMargin; // Cap to available margin
+            totalSettlement = totalMargin;
         }
 
         require(claimEngineFactory != address(0), "ClaimEngineFactory not set");
