@@ -8,10 +8,7 @@ contract MockOracle is Ownable {
 
     event PriceUpdated(uint256 newPrice);
 
-    constructor(
-        address initialOwner,
-        uint256 _initialPrice
-    ) Ownable(initialOwner) {
+    constructor(uint256 _initialPrice) {
         price = _initialPrice;
     }
 

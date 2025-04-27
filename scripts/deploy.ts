@@ -4,35 +4,33 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
 
-  // 1. Deploy Vault (no await .deployed)
+  const usdcAddress = "0xE0f2a422f2F2e4dB6276E65f2cc0c46EfDE2b6A7"; // Base Sepolia USDC
+
   const Vault = await ethers.getContractFactory("Vault");
-  const vault = await Vault.deploy(deployer.address);
+  const vault = await Vault.deploy(usdcAddress, deployer.address);
   console.log("Vault deployed at:", vault.target);
 
-  // 2. Deploy CBBCFactory
   const CBBCFactory = await ethers.getContractFactory("CBBCFactory");
   const factory = await CBBCFactory.deploy(vault.target, deployer.address);
   console.log("CBBCFactory deployed at:", factory.target);
 
-  // 3. Deploy MockOracle (for testing)
   const MockOracle = await ethers.getContractFactory("MockOracle");
-  const mockOracle = await MockOracle.deploy(ethers.parseUnits("58000", 8)); // New parseUnits
+  const mockOracle = await MockOracle.deploy(ethers.parseUnits("58000", 8));
   console.log("MockOracle deployed at:", mockOracle.target);
 
-  // 4. Create a CBBC Product
   const createTx = await factory.createCBBC(
-    "BTC Bull 30JUN25",        // name
-    "BTCBULL",                  // symbol
-    mockOracle.target,          // oracle
-    vault.target,               // vault
-    ethers.parseUnits("60000", 8), // strikePrice
-    ethers.parseUnits("50000", 8), // callLevel
-    Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // expiry
-    true,                       // isBull
-    ethers.parseUnits("0.2", 18), // marginRatio (20%)
-    ethers.parseUnits("58000", 8), // initialPrice
-    deployer.address,            // issuer
-    deployer.address             // initialOwner (CBBC ownable)
+    "BTC Bull 30JUN25",
+    "BTCBULL",
+    mockOracle.target,
+    vault.target,
+    ethers.parseUnits("60000", 8),
+    ethers.parseUnits("50000", 8),
+    Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
+    true,
+    ethers.parseUnits("0.2", 18),
+    ethers.parseUnits("58000", 8),
+    deployer.address,
+    deployer.address
   );
   const receipt = await createTx.wait();
   console.log("CBBC created via Factory!");
